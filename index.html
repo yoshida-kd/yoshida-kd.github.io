@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>営業状況</title>
+  <title>コーヒーブレイク</title>
   <!-- Bootstrap 5 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
   <!-- Bootstrap Icons -->
@@ -33,6 +33,52 @@
       font-weight: 700;
       letter-spacing: 0.1em;
     }
+    .calendar-section {
+      max-width: 980px;
+      width: 100%;
+    }
+    .month-calendar {
+      background: #fff;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    .month-calendar table {
+      margin-bottom: 0;
+    }
+    .month-calendar th,
+    .month-calendar td {
+      width: 14.2857%;
+      text-align: center;
+      vertical-align: middle;
+      padding: 0.45rem 0.25rem;
+      font-size: 0.92rem;
+    }
+    .month-calendar thead th {
+      background: #f8f9fa;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+    .calendar-day {
+      min-height: 2rem;
+      border-radius: 0.6rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2rem;
+      height: 2rem;
+    }
+    .calendar-day.is-open {
+      background: #198754;
+      color: #fff;
+      font-weight: 700;
+    }
+    .calendar-day.is-closed {
+      background: #e9ecef;
+      color: #6c757d;
+    }
+    .calendar-day.is-today {
+      outline: 2px solid #0d6efd;
+      outline-offset: 2px;
+    }
     footer {
       margin-top: auto;
     }
@@ -41,28 +87,42 @@
 <body>
 
   <!-- Navbar -->
-  <nav class="navbar navbar-dark bg-dark">
+  <nav class="navbar navbar-light bg-white">
     <div class="container">
       <a class="navbar-brand fw-bold" href="index.html">
-        <i class="bi bi-shop me-2"></i>営業状況
+        <i class="bi bi-cup-hot me-2"></i>コーヒーブレイク
       </a>
-      <a href="schedule.html" class="btn btn-outline-light btn-sm">
-        <i class="bi bi-calendar3 me-1"></i>予定管理
+      <a href="schedule.html" class="btn btn-outline-dark btn-sm">
+        <i class="bi bi-calendar3 me-1"></i>管理者用
       </a>
     </div>
   </nav>
 
   <!-- Main -->
   <main class="flex-grow-1 d-flex align-items-center justify-content-center py-5">
-    <div class="status-card text-center text-white rounded-4 shadow-lg p-5" id="statusCard">
-      <div class="status-icon mb-3" id="statusIcon"></div>
-      <div class="status-label mb-2" id="statusLabel"></div>
-      <p class="mb-0 fs-5" id="statusDate"></p>
+    <div class="container d-flex flex-column align-items-center gap-4">
+      <div class="status-card text-center text-white rounded-4 shadow-lg p-5" id="statusCard">
+        <div class="status-icon mb-3" id="statusIcon"></div>
+        <div class="status-label mb-2" id="statusLabel"></div>
+        <p class="mb-0 fs-5" id="statusDate"></p>
+      </div>
+
+      <div class="alert alert-light border mb-0" role="note">
+        <ul class="mb-0 small">
+          <li>コーヒーブレイクは毎日15時から17時に設けて、特に火曜日の4限時間帯は担当している講義のオフィスアワーとします。</li>
+          <li>コーヒーブレイクの時間帯は研究室にいるようにするので、アポなしで研究室に来ても構いません。それ以外の時間帯はLINEのような気楽な方法で構わないので事前に連絡をください（無駄足になったら申し訳ないので）。</li>
+          <li>私も暇ではありませんが、幸い時間の融通は効くので気軽に来てください。</li>
+        </ul>
+      </div>
+
+      <section class="calendar-section">
+        <div class="d-flex flex-column flex-md-row gap-3" id="calendarGrid"></div>
+      </section>
     </div>
   </main>
 
   <!-- Footer -->
-  <footer class="py-3 bg-dark text-white text-center small">
+  <footer class="py-3 bg-white text-dark text-center small border-top">
     <div class="container">
       &copy; <span id="year"></span> yoshida-kd
     </div>
@@ -87,26 +147,106 @@
     const today = new Date();
     const key = toDateKey(today);
     const schedule = getSchedule();
-    const isOpen = schedule[key] === 'open';
+    const isOpen = schedule[key] !== 'closed';
 
     const card = document.getElementById('statusCard');
     const icon = document.getElementById('statusIcon');
     const label = document.getElementById('statusLabel');
     const dateEl = document.getElementById('statusDate');
+    const calendarGrid = document.getElementById('calendarGrid');
+
+    const weekdayLabels = ['日', '月', '火', '水', '木', '金', '土'];
+
+    function monthStart(date) {
+      return new Date(date.getFullYear(), date.getMonth(), 1);
+    }
+
+    function addMonths(date, months) {
+      return new Date(date.getFullYear(), date.getMonth() + months, 1);
+    }
+
+    function buildMonthCalendar(date) {
+      const firstDay = monthStart(date);
+      const year = firstDay.getFullYear();
+      const month = firstDay.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const startOffset = firstDay.getDay();
+      const title = firstDay.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' });
+      const todayKey = toDateKey(today);
+
+      let html = `
+        <div class="month-calendar rounded-4 shadow-sm flex-fill">
+          <div class="border-bottom px-3 py-2 fw-bold text-center">${title}</div>
+          <div class="table-responsive">
+            <table class="table table-bordered mb-0 align-middle">
+              <thead>
+                <tr>${weekdayLabels.map(label => `<th scope="col">${label}</th>`).join('')}</tr>
+              </thead>
+              <tbody>
+      `;
+
+      let day = 1;
+      let rendered = false;
+      for (let week = 0; week < 6; week += 1) {
+        const cells = [];
+        for (let dow = 0; dow < 7; dow += 1) {
+          const isEmpty = (week === 0 && dow < startOffset) || day > daysInMonth;
+          if (isEmpty) {
+            cells.push('<td></td>');
+            continue;
+          }
+
+          const currentDate = new Date(year, month, day);
+          const dateKey = toDateKey(currentDate);
+          const isOpen = schedule[dateKey] !== 'closed';
+          const classes = ['calendar-day'];
+          classes.push(isOpen ? 'is-open' : 'is-closed');
+          if (dateKey === todayKey) {
+            classes.push('is-today');
+          }
+          cells.push(`<td><span class="${classes.join(' ')}">${day}</span></td>`);
+          day += 1;
+          rendered = true;
+        }
+
+        html += `<tr>${cells.join('')}</tr>`;
+        if (day > daysInMonth && rendered) {
+          break;
+        }
+      }
+
+      html += `
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      return html;
+    }
+
+    function renderCalendars() {
+      const currentMonth = monthStart(today);
+      const nextMonth = addMonths(today, 1);
+      calendarGrid.innerHTML = [buildMonthCalendar(currentMonth), buildMonthCalendar(nextMonth)].join('');
+    }
 
     if (isOpen) {
       card.classList.add('status-open');
       icon.innerHTML = '<i class="bi bi-door-open-fill"></i>';
-      label.textContent = '営業中';
+      label.textContent = '本日営業';
     } else {
       card.classList.add('status-closed');
       icon.innerHTML = '<i class="bi bi-door-closed-fill"></i>';
-      label.textContent = '準備中';
+      label.textContent = '臨時休業';
     }
 
-    dateEl.textContent = today.toLocaleDateString('ja-JP', {
-      year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'
+    const formattedDate = today.toLocaleDateString('ja-JP', {
+      year: 'numeric', month: 'long', day: 'numeric', weekday: 'short'
     });
+    dateEl.textContent = formattedDate + ' 15:00-17:00';
+
+    renderCalendars();
   </script>
 </body>
 </html>
