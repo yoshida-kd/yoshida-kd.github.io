@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>予定管理</title>
+  <!-- Bootstrap 5 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <!-- FullCalendar -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css" />
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: #f8f9fa;
+    }
+    footer { margin-top: auto; }
+
+    /* Calendar cell coloring */
+    .fc-daygrid-day.day-open .fc-daygrid-day-frame {
+      background: rgba(25, 135, 84, 0.15);
+    }
+    .fc-daygrid-day.day-closed .fc-daygrid-day-frame {
+      background: rgba(108, 117, 125, 0.1);
+    }
+    .fc-daygrid-day.day-open .fc-daygrid-day-number {
+      color: #198754;
+      font-weight: 700;
+    }
+
+    /* Event badges */
+    .fc-event-open {
+      background-color: #198754 !important;
+      border-color: #198754 !important;
+    }
+    .fc-event-closed {
+      background-color: #6c757d !important;
+      border-color: #6c757d !important;
+    }
+
+    #calendar {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .legend-dot {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="index.html">
+        <i class="bi bi-shop me-2"></i>営業状況
+      </a>
+      <a href="schedule.html" class="btn btn-success btn-sm">
+        <i class="bi bi-calendar3 me-1"></i>予定管理
+      </a>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="flex-grow-1 container py-4">
+    <h2 class="mb-1 fw-bold"><i class="bi bi-calendar-week me-2"></i>予定管理</h2>
+    <p class="text-muted mb-3">日付をクリックして「営業中」か「準備中」を切り替えられます。</p>
+
+    <!-- Legend -->
+    <div class="d-flex gap-3 mb-3 align-items-center">
+      <span class="d-flex align-items-center gap-1">
+        <span class="legend-dot bg-success"></span> 営業中
+      </span>
+      <span class="d-flex align-items-center gap-1">
+        <span class="legend-dot bg-secondary"></span> 準備中（デフォルト）
+      </span>
+      <button id="btnClearAll" class="btn btn-outline-danger btn-sm ms-auto">
+        <i class="bi bi-trash me-1"></i>すべてリセット
+      </button>
+    </div>
+
+    <!-- Calendar -->
+    <div id="calendar"></div>
+
+    <!-- Bulk set modal trigger -->
+    <div class="mt-3 d-flex gap-2 flex-wrap">
+      <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#bulkModal">
+        <i class="bi bi-calendar-plus me-1"></i>まとめて登録
+      </button>
+    </div>
+  </main>
+
+  <!-- Bulk modal -->
+  <div class="modal fade" id="bulkModal" tabindex="-1" aria-labelledby="bulkModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="bulkModalLabel">
+            <i class="bi bi-calendar-range me-2"></i>まとめて登録
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">開始日</label>
+            <input type="date" id="bulkStart" class="form-control" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">終了日</label>
+            <input type="date" id="bulkEnd" class="form-control" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">ステータス</label>
+            <select id="bulkStatus" class="form-select">
+              <option value="open">営業中</option>
+              <option value="closed">準備中（削除）</option>
+            </select>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="weekdaysOnly" />
+            <label class="form-check-label" for="weekdaysOnly">平日のみ（土日を除く）</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+          <button type="button" class="btn btn-success" id="btnBulkSave" data-bs-dismiss="modal">
+            <i class="bi bi-check2 me-1"></i>登録
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="py-3 bg-dark text-white text-center small mt-4">
+    <div class="container">
+      &copy; <span id="year"></span> yoshida-kd
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    /* ---- storage helpers ---- */
+    function getSchedule() {
+      try { return JSON.parse(localStorage.getItem('schedule') || '{}'); }
+      catch { return {}; }
+    }
+    function saveSchedule(s) {
+      localStorage.setItem('schedule', JSON.stringify(s));
+    }
+
+    /* ---- build FullCalendar events from schedule ---- */
+    function buildEvents(schedule) {
+      return Object.entries(schedule)
+        .filter(([, v]) => v === 'open')
+        .map(([date]) => ({
+          id: date,
+          title: '営業中',
+          start: date,
+          allDay: true,
+          classNames: ['fc-event-open'],
+        }));
+    }
+
+    /* ---- calendar ---- */
+    const calEl = document.getElementById('calendar');
+    const calendar = new FullCalendar.Calendar(calEl, {
+      initialView: 'dayGridMonth',
+      locale: 'ja',
+      height: 'auto',
+      firstDay: 0,
+      headerToolbar: {
+        left: 'prev,next today',
+        center: 'title',
+        right: 'dayGridMonth,listMonth',
+      },
+      buttonText: { today: '今日', month: '月', list: 'リスト' },
+      events: buildEvents(getSchedule()),
+
+      /* Toggle on day click */
+      dateClick(info) {
+        const schedule = getSchedule();
+        const key = info.dateStr;
+        if (schedule[key] === 'open') {
+          delete schedule[key];
+        } else {
+          schedule[key] = 'open';
+        }
+        saveSchedule(schedule);
+        refreshCalendar();
+      },
+
+      /* Toggle on event click (remove open) */
+      eventClick(info) {
+        const schedule = getSchedule();
+        delete schedule[info.event.id];
+        saveSchedule(schedule);
+        refreshCalendar();
+      },
+
+      /* Color day cells */
+      dayCellDidMount(info) {
+        const key = info.date.toLocaleDateString('sv-SE');
+        const schedule = getSchedule();
+        if (schedule[key] === 'open') {
+          info.el.classList.add('day-open');
+        }
+      },
+    });
+    calendar.render();
+
+    function refreshCalendar() {
+      calendar.removeAllEvents();
+      calendar.addEventSource(buildEvents(getSchedule()));
+    }
+
+    /* ---- clear all ---- */
+    document.getElementById('btnClearAll').addEventListener('click', () => {
+      if (confirm('すべての予定をリセットしますか？')) {
+        saveSchedule({});
+        refreshCalendar();
+      }
+    });
+
+    /* ---- bulk register ---- */
+    document.getElementById('btnBulkSave').addEventListener('click', () => {
+      const start = document.getElementById('bulkStart').value;
+      const end = document.getElementById('bulkEnd').value;
+      const status = document.getElementById('bulkStatus').value;
+      const weekdaysOnly = document.getElementById('weekdaysOnly').checked;
+
+      if (!start || !end || start > end) {
+        alert('正しい日付範囲を入力してください。');
+        return;
+      }
+
+      const schedule = getSchedule();
+      const cur = new Date(start);
+      const last = new Date(end);
+      while (cur <= last) {
+        const dow = cur.getDay();
+        if (!weekdaysOnly || (dow !== 0 && dow !== 6)) {
+          const key = cur.toLocaleDateString('sv-SE');
+          if (status === 'open') {
+            schedule[key] = 'open';
+          } else {
+            delete schedule[key];
+          }
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+      saveSchedule(schedule);
+      refreshCalendar();
+    });
+  </script>
+</body>
+</html>
