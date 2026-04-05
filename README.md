@@ -24,13 +24,12 @@
 
 ---
 
-## パスワードのリセット方法
+## パスワードについて
 
-予定管理ページ（`schedule.html`）のパスワードを忘れた場合は、ブラウザの「LocalStorage」を消去することでリセットできます。
+予定管理ページ（`schedule.html`）のパスワードはソースコード内に SHA-256 ハッシュとして固定されています。
 
-### 手順（Chrome の場合）
-1. 予定管理ページを開く
-2. F12（開発者ツール）を開く
-3. **Application** タブ → **Local Storage** → 対象のオリジンを選択
-4. `schedulePasswordHash` を右クリックして **Delete** する
-5. ページをリロードすると初回設定画面が表示されます
+パスワードを変更するには、`schedule.html` の `FIXED_PASSWORD_HASH` の値を新しいパスワードの SHA-256 ハッシュに書き換えてください。
+
+```bash
+echo -n "新しいパスワード" | sha256sum | cut -d" " -f1
+```

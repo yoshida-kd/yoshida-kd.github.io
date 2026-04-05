@@ -78,17 +78,6 @@
         </h1>
         <p class="text-muted mb-4" id="authGateDescription">パスワードを入力してください。</p>
 
-        <div id="authSetupFields" class="d-none">
-          <div class="mb-3">
-            <label class="form-label fw-semibold" for="authSetupPassword1">新しいパスワード</label>
-            <input type="password" id="authSetupPassword1" class="form-control" placeholder="パスワードを入力" />
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold" for="authSetupPassword2">パスワード（確認）</label>
-            <input type="password" id="authSetupPassword2" class="form-control" placeholder="もう一度入力" />
-          </div>
-        </div>
-
         <div id="authLoginFields">
           <label class="form-label fw-semibold" for="authPassword">パスワード</label>
           <input type="password" id="authPassword" class="form-control" placeholder="パスワードを入力" />
@@ -110,9 +99,6 @@
           <i class="bi bi-shop me-2"></i>コーヒーブレイク
         </a>
         <div class="d-flex gap-2">
-          <button class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
-            <i class="bi bi-key me-1"></i>パスワード変更
-          </button>
           <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#patModal">
             <i class="bi bi-github me-1"></i>PAT設定
           </button>
@@ -236,42 +222,6 @@
       </div>
     </div>
 
-    <!-- Password change modal -->
-    <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="changePasswordModalLabel">
-              <i class="bi bi-key me-2"></i>パスワード変更
-            </h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <div class="mb-3">
-              <label class="form-label fw-semibold">現在のパスワード</label>
-              <input type="password" id="changeCurrentPassword" class="form-control" placeholder="現在のパスワード" />
-            </div>
-            <div class="mb-3">
-              <label class="form-label fw-semibold">新しいパスワード</label>
-              <input type="password" id="changeNewPassword1" class="form-control" placeholder="新しいパスワード" />
-            </div>
-            <div class="mb-3">
-              <label class="form-label fw-semibold">新しいパスワード（確認）</label>
-              <input type="password" id="changeNewPassword2" class="form-control" placeholder="もう一度入力" />
-            </div>
-            <div id="changePasswordError" class="text-danger small d-none"></div>
-            <div id="changePasswordSuccess" class="text-success small d-none"></div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-            <button type="button" class="btn btn-primary" id="btnChangePasswordSave">
-              <i class="bi bi-check2 me-1"></i>変更する
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Footer -->
     <footer class="py-3 bg-white text-dark text-center small border-top mt-4">
       <div class="container">
@@ -296,55 +246,24 @@
     document.getElementById('year').textContent = new Date().getFullYear();
 
     /* ---- password helpers ---- */
-    const PW_KEY = 'schedulePasswordHash';
+    // SHA-256 hash of the fixed admin password.
+    // To change the password, compute: echo -n "newpassword" | sha256sum | cut -d" " -f1
+    // and replace the value below.
+    const FIXED_PASSWORD_HASH = 'e53f62e9e2fa8da33dd196001cf04c65b1749ec2eddf9a3907ccc9e9d22c0b2a';
 
     async function sha256(text) {
       const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
       return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    /* ---- PBKDF2 helpers (salted key derivation) ---- */
-    async function hashPassword(password) {
-      const salt = crypto.getRandomValues(new Uint8Array(16));
-      const key = await deriveKey(password, salt);
-      const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
-      return saltHex + ':' + key;
+    async function verifyPassword(password) {
+      return await sha256(password) === FIXED_PASSWORD_HASH;
     }
 
-    async function deriveKey(password, salt) {
-      const enc = new TextEncoder();
-      const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
-      const bits = await crypto.subtle.deriveBits(
-        { name: 'PBKDF2', salt, iterations: 200000, hash: 'SHA-256' },
-        keyMaterial, 256
-      );
-      return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-
-    async function verifyPassword(password, stored) {
-      const [saltHex, expectedKey] = stored.split(':');
-      if (!saltHex || !expectedKey) {
-        /* legacy SHA-256 (no salt) — accept once, will be re-hashed on next change */
-        return await sha256(password) === stored;
-      }
-      const salt = new Uint8Array(saltHex.match(/.{2}/g).map(h => parseInt(h, 16)));
-      const key = await deriveKey(password, salt);
-      return key === expectedKey;
-    }
-
-    const MIN_PW_LEN = 8;
     const pageContent = document.getElementById('pageContent');
     const authGate = document.getElementById('authGate');
-    const authGateDescription = document.getElementById('authGateDescription');
-    const authSetupFields = document.getElementById('authSetupFields');
-    const authLoginFields = document.getElementById('authLoginFields');
-    const authSubmit = document.getElementById('authSubmit');
-    const authSubmitLabel = document.getElementById('authSubmitLabel');
     const authError = document.getElementById('authError');
     const authPassword = document.getElementById('authPassword');
-    const authSetupPassword1 = document.getElementById('authSetupPassword1');
-    const authSetupPassword2 = document.getElementById('authSetupPassword2');
-    let authMode = 'login';
 
     function showError(el, msg) {
       el.textContent = msg;
@@ -352,18 +271,6 @@
     }
     function hideError(el) {
       el.classList.add('d-none');
-    }
-
-    function setAuthMode(mode) {
-      authMode = mode;
-      const isSetup = mode === 'setup';
-      authSetupFields.classList.toggle('d-none', !isSetup);
-      authLoginFields.classList.toggle('d-none', isSetup);
-      authGateDescription.textContent = isSetup
-        ? '最初のパスワードを設定してください。'
-        : 'パスワードを入力してください。';
-      authSubmitLabel.textContent = isSetup ? '設定して開く' : 'ログイン';
-      hideError(authError);
     }
 
     function unlockPage() {
@@ -374,35 +281,11 @@
       }
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
-      const stored = localStorage.getItem(PW_KEY);
-      if (!stored) {
-        setAuthMode('setup');
-      } else {
-        setAuthMode('login');
-      }
-    });
-
-    authSubmit.addEventListener('click', async () => {
+    document.getElementById('authSubmit').addEventListener('click', async () => {
       hideError(authError);
-
-      if (authMode === 'setup') {
-        const firstPassword = authSetupPassword1.value;
-        const secondPassword = authSetupPassword2.value;
-        if (!firstPassword) { showError(authError, 'パスワードを入力してください。'); return; }
-        if (firstPassword.length < MIN_PW_LEN) { showError(authError, `パスワードは${MIN_PW_LEN}文字以上にしてください。`); return; }
-        if (firstPassword !== secondPassword) { showError(authError, 'パスワードが一致しません。'); return; }
-        localStorage.setItem(PW_KEY, await hashPassword(firstPassword));
-        authPassword.value = '';
-        authSetupPassword1.value = '';
-        authSetupPassword2.value = '';
-        unlockPage();
-        return;
-      }
-
       const password = authPassword.value;
       if (!password) { showError(authError, 'パスワードを入力してください。'); return; }
-      const ok = await verifyPassword(password, localStorage.getItem(PW_KEY));
+      const ok = await verifyPassword(password);
       if (!ok) {
         showError(authError, 'パスワードが違います。');
         authPassword.value = '';
@@ -412,39 +295,10 @@
       unlockPage();
     });
 
-    [authPassword, authSetupPassword1, authSetupPassword2].forEach(input => {
-      input.addEventListener('keydown', event => {
-        if (event.key === 'Enter') {
-          authSubmit.click();
-        }
-      });
-    });
-
-    /* ---- change password ---- */
-    document.getElementById('btnChangePasswordSave').addEventListener('click', async () => {
-      const cur = document.getElementById('changeCurrentPassword').value;
-      const n1 = document.getElementById('changeNewPassword1').value;
-      const n2 = document.getElementById('changeNewPassword2').value;
-      const errEl = document.getElementById('changePasswordError');
-      const okEl = document.getElementById('changePasswordSuccess');
-      hideError(errEl);
-      okEl.classList.add('d-none');
-      if (!cur) { showError(errEl, '現在のパスワードを入力してください。'); return; }
-      const curOk = await verifyPassword(cur, localStorage.getItem(PW_KEY));
-      if (!curOk) {
-        showError(errEl, '現在のパスワードが違います。');
-        document.getElementById('changeCurrentPassword').value = '';
-        return;
+    authPassword.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        document.getElementById('authSubmit').click();
       }
-      if (!n1) { showError(errEl, '新しいパスワードを入力してください。'); return; }
-      if (n1.length < MIN_PW_LEN) { showError(errEl, `新しいパスワードは${MIN_PW_LEN}文字以上にしてください。`); return; }
-      if (n1 !== n2) { showError(errEl, '新しいパスワードが一致しません。'); return; }
-      localStorage.setItem(PW_KEY, await hashPassword(n1));
-      document.getElementById('changeCurrentPassword').value = '';
-      document.getElementById('changeNewPassword1').value = '';
-      document.getElementById('changeNewPassword2').value = '';
-      okEl.textContent = 'パスワードを変更しました。';
-      okEl.classList.remove('d-none');
     });
 
     /* ---- Gist / storage helpers ---- */
