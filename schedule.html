@@ -472,7 +472,7 @@
         'Accept': 'application/vnd.github+json',
         ...(pat ? { 'Authorization': 'Bearer ' + pat } : {}),
       };
-      const resp = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers });
+      const resp = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers, cache: 'no-store' });
       if (!resp.ok) throw new Error(`Gist取得エラー (${resp.status})`);
       const data = await resp.json();
       const content = data.files?.['schedule.json']?.content || '{}';
