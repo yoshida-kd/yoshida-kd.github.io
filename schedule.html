@@ -249,7 +249,7 @@
     // SHA-256 hash of the fixed admin password.
     // To change the password, compute: echo -n "newpassword" | sha256sum | cut -d" " -f1
     // and replace the value below.
-    const FIXED_PASSWORD_HASH = '9166d9bb287c5f0e6892989ab78aa31de94dc16777dd27d5700078a24a4d2013';
+    const FIXED_PASSWORD_HASH = 'e53f62e9e2fa8da33dd196001cf04c65b1749ec2eddf9a3907ccc9e9d22c0b2a';
 
     async function sha256(text) {
       const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
