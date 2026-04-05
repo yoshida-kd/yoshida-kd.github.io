@@ -253,6 +253,37 @@
       return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
+    /* ---- PBKDF2 helpers (salted key derivation) ---- */
+    async function hashPassword(password) {
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const key = await deriveKey(password, salt);
+      const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
+      return saltHex + ':' + key;
+    }
+
+    async function deriveKey(password, salt) {
+      const enc = new TextEncoder();
+      const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+      const bits = await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', salt, iterations: 200000, hash: 'SHA-256' },
+        keyMaterial, 256
+      );
+      return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function verifyPassword(password, stored) {
+      const [saltHex, expectedKey] = stored.split(':');
+      if (!saltHex || !expectedKey) {
+        /* legacy SHA-256 (no salt) — accept once, will be re-hashed on next change */
+        return await sha256(password) === stored;
+      }
+      const salt = new Uint8Array(saltHex.match(/.{2}/g).map(h => parseInt(h, 16)));
+      const key = await deriveKey(password, salt);
+      return key === expectedKey;
+    }
+
+    const MIN_PW_LEN = 8;
+
     function showError(el, msg) {
       el.textContent = msg;
       el.classList.remove('d-none');
@@ -278,8 +309,9 @@
       const errEl = document.getElementById('setupPasswordError');
       hideError(errEl);
       if (!p1) { showError(errEl, 'パスワードを入力してください。'); return; }
+      if (p1.length < MIN_PW_LEN) { showError(errEl, `パスワードは${MIN_PW_LEN}文字以上にしてください。`); return; }
       if (p1 !== p2) { showError(errEl, 'パスワードが一致しません。'); return; }
-      localStorage.setItem(PW_KEY, await sha256(p1));
+      localStorage.setItem(PW_KEY, await hashPassword(p1));
       bootstrap.Modal.getInstance(document.getElementById('setupPasswordModal')).hide();
       document.getElementById('setupPassword1').value = '';
       document.getElementById('setupPassword2').value = '';
@@ -291,8 +323,8 @@
       const errEl = document.getElementById('enterPasswordError');
       hideError(errEl);
       if (!val) { showError(errEl, 'パスワードを入力してください。'); return; }
-      const hash = await sha256(val);
-      if (hash !== localStorage.getItem(PW_KEY)) {
+      const ok = await verifyPassword(val, localStorage.getItem(PW_KEY));
+      if (!ok) {
         showError(errEl, 'パスワードが違います。');
         document.getElementById('enterPassword').value = '';
         return;
@@ -316,14 +348,16 @@
       hideError(errEl);
       okEl.classList.add('d-none');
       if (!cur) { showError(errEl, '現在のパスワードを入力してください。'); return; }
-      if (await sha256(cur) !== localStorage.getItem(PW_KEY)) {
+      const curOk = await verifyPassword(cur, localStorage.getItem(PW_KEY));
+      if (!curOk) {
         showError(errEl, '現在のパスワードが違います。');
         document.getElementById('changeCurrentPassword').value = '';
         return;
       }
       if (!n1) { showError(errEl, '新しいパスワードを入力してください。'); return; }
+      if (n1.length < MIN_PW_LEN) { showError(errEl, `新しいパスワードは${MIN_PW_LEN}文字以上にしてください。`); return; }
       if (n1 !== n2) { showError(errEl, '新しいパスワードが一致しません。'); return; }
-      localStorage.setItem(PW_KEY, await sha256(n1));
+      localStorage.setItem(PW_KEY, await hashPassword(n1));
       document.getElementById('changeCurrentPassword').value = '';
       document.getElementById('changeNewPassword1').value = '';
       document.getElementById('changeNewPassword2').value = '';
