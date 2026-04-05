@@ -447,7 +447,10 @@
     });
 
     /* ---- Gist / storage helpers ---- */
-    const GIST_ID = ''; // ← Gist作成後にIDを設定してください
+    // Gist IDを設定してください。
+    // 手順: https://gist.github.com/ で新規Gistを作成し、ファイル名を "schedule.json"、内容を "{}" として保存。
+    // URLに含まれる英数字の文字列（例: https://gist.github.com/username/abc123 の "abc123"）をここに設定。
+    const GIST_ID = '';
     const PAT_KEY = 'gistPAT';
 
     function showToast(message, type = 'success') {
@@ -464,8 +467,10 @@
         catch { return {}; }
       }
       const pat = localStorage.getItem(PAT_KEY) || '';
-      const headers = { 'Accept': 'application/vnd.github+json' };
-      if (pat) headers['Authorization'] = 'Bearer ' + pat;
+      const headers = {
+        'Accept': 'application/vnd.github+json',
+        ...(pat ? { 'Authorization': 'Bearer ' + pat } : {}),
+      };
       const resp = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers });
       if (!resp.ok) throw new Error(`Gist取得エラー (${resp.status})`);
       const data = await resp.json();
@@ -589,7 +594,8 @@
         return;
       }
 
-      const schedule = await getSchedule();      const cur = new Date(start);
+      const schedule = await getSchedule();
+      const cur = new Date(start);
       const last = new Date(end);
       while (cur <= last) {
         const dow = cur.getDay();

@@ -134,7 +134,8 @@
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
 
-    const GIST_ID = ''; // ← Gist作成後にIDを設定してください
+    // Gist IDを設定してください（schedule.htmlのGIST_IDと同じ値）。
+    const GIST_ID = '';
 
     async function getSchedule() {
       if (!GIST_ID) {
