@@ -19,18 +19,6 @@
     }
     footer { margin-top: auto; }
 
-    /* Calendar cell coloring */
-    .fc-daygrid-day.day-open .fc-daygrid-day-frame {
-      background: rgba(25, 135, 84, 0.15);
-    }
-    .fc-daygrid-day.day-closed .fc-daygrid-day-frame {
-      background: rgba(108, 117, 125, 0.1);
-    }
-    .fc-daygrid-day.day-open .fc-daygrid-day-number {
-      color: #198754;
-      font-weight: 700;
-    }
-
     /* Event badges */
     .fc-event-open {
       background-color: #198754 !important;
@@ -51,194 +39,199 @@
       border-radius: 50%;
       display: inline-block;
     }
+
+    #pageContent {
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    #pageContent.is-unlocked {
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    #authGate {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      background: rgba(248, 249, 250, 0.92);
+      backdrop-filter: blur(10px);
+    }
+
+    #authGate.is-hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
 
-  <!-- Navbar -->
-  <nav class="navbar navbar-dark bg-dark">
-    <div class="container">
-      <a class="navbar-brand fw-bold" href="index.html">
-        <i class="bi bi-shop me-2"></i>営業状況
-      </a>
-      <div class="d-flex gap-2">
-        <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
-          <i class="bi bi-key me-1"></i>パスワード変更
+  <div id="authGate" aria-modal="true" role="dialog" aria-labelledby="authGateTitle">
+    <div class="card shadow-lg border-0 rounded-4" style="max-width: 420px; width: 100%;">
+      <div class="card-body p-4 p-md-5">
+        <h1 class="h4 fw-bold mb-2" id="authGateTitle">
+          <i class="bi bi-lock me-2"></i>予定管理ページ
+        </h1>
+        <p class="text-muted mb-4" id="authGateDescription">パスワードを入力してください。</p>
+
+        <div id="authSetupFields" class="d-none">
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="authSetupPassword1">新しいパスワード</label>
+            <input type="password" id="authSetupPassword1" class="form-control" placeholder="パスワードを入力" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="authSetupPassword2">パスワード（確認）</label>
+            <input type="password" id="authSetupPassword2" class="form-control" placeholder="もう一度入力" />
+          </div>
+        </div>
+
+        <div id="authLoginFields">
+          <label class="form-label fw-semibold" for="authPassword">パスワード</label>
+          <input type="password" id="authPassword" class="form-control" placeholder="パスワードを入力" />
+        </div>
+
+        <div id="authError" class="text-danger small d-none mt-3"></div>
+        <button type="button" id="authSubmit" class="btn btn-primary w-100 mt-4">
+          <i class="bi bi-unlock me-1"></i><span id="authSubmitLabel">ログイン</span>
         </button>
-        <a href="schedule.html" class="btn btn-success btn-sm">
-          <i class="bi bi-calendar3 me-1"></i>予定管理
+      </div>
+    </div>
+  </div>
+
+  <div id="pageContent">
+    <!-- Navbar -->
+    <nav class="navbar navbar-light bg-white">
+      <div class="container">
+        <a class="navbar-brand fw-bold" href="index.html">
+          <i class="bi bi-shop me-2"></i>コーヒーブレイク
         </a>
-      </div>
-    </div>
-  </nav>
-
-  <!-- Main -->
-  <main class="flex-grow-1 container py-4">
-    <h2 class="mb-1 fw-bold"><i class="bi bi-calendar-week me-2"></i>予定管理</h2>
-    <p class="text-muted mb-3">日付をクリックして「営業中」か「準備中」を切り替えられます。</p>
-
-    <!-- Legend -->
-    <div class="d-flex gap-3 mb-3 align-items-center">
-      <span class="d-flex align-items-center gap-1">
-        <span class="legend-dot bg-success"></span> 営業中
-      </span>
-      <span class="d-flex align-items-center gap-1">
-        <span class="legend-dot bg-secondary"></span> 準備中（デフォルト）
-      </span>
-      <button id="btnClearAll" class="btn btn-outline-danger btn-sm ms-auto">
-        <i class="bi bi-trash me-1"></i>すべてリセット
-      </button>
-    </div>
-
-    <!-- Calendar -->
-    <div id="calendar"></div>
-
-    <!-- Bulk set modal trigger -->
-    <div class="mt-3 d-flex gap-2 flex-wrap">
-      <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#bulkModal">
-        <i class="bi bi-calendar-plus me-1"></i>まとめて登録
-      </button>
-    </div>
-  </main>
-
-  <!-- Bulk modal -->
-  <div class="modal fade" id="bulkModal" tabindex="-1" aria-labelledby="bulkModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="bulkModalLabel">
-            <i class="bi bi-calendar-range me-2"></i>まとめて登録
-          </h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label fw-semibold">開始日</label>
-            <input type="date" id="bulkStart" class="form-control" />
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold">終了日</label>
-            <input type="date" id="bulkEnd" class="form-control" />
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold">ステータス</label>
-            <select id="bulkStatus" class="form-select">
-              <option value="open">営業中</option>
-              <option value="closed">準備中（削除）</option>
-            </select>
-          </div>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" id="weekdaysOnly" />
-            <label class="form-check-label" for="weekdaysOnly">平日のみ（土日を除く）</label>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-          <button type="button" class="btn btn-success" id="btnBulkSave" data-bs-dismiss="modal">
-            <i class="bi bi-check2 me-1"></i>登録
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
+            <i class="bi bi-key me-1"></i>パスワード変更
           </button>
+          <a href="schedule.html" class="btn btn-success btn-sm">
+            <i class="bi bi-calendar3 me-1"></i>予定管理
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main -->
+    <main class="flex-grow-1 container py-4">
+      <h2 class="mb-1 fw-bold"><i class="bi bi-calendar-week me-2"></i>予定管理</h2>
+      <p class="text-muted mb-3">日付をクリックして「営業日（デフォルト）」か「臨時休業」を切り替えられます。</p>
+
+      <!-- Legend -->
+      <div class="d-flex gap-3 mb-3 align-items-center">
+        <span class="d-flex align-items-center gap-1">
+          <span class="legend-dot bg-success"></span> 営業日（デフォルト）
+        </span>
+        <span class="d-flex align-items-center gap-1">
+          <span class="legend-dot bg-secondary"></span> 臨時休業
+        </span>
+        <button id="btnClearAll" class="btn btn-outline-danger btn-sm ms-auto">
+          <i class="bi bi-trash me-1"></i>すべてリセット
+        </button>
+      </div>
+
+      <!-- Calendar -->
+      <div id="calendar"></div>
+
+      <!-- Bulk set modal trigger -->
+      <div class="mt-3 d-flex gap-2 flex-wrap">
+        <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#bulkModal">
+          <i class="bi bi-calendar-plus me-1"></i>まとめて登録
+        </button>
+      </div>
+    </main>
+
+    <!-- Bulk modal -->
+    <div class="modal fade" id="bulkModal" tabindex="-1" aria-labelledby="bulkModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="bulkModalLabel">
+              <i class="bi bi-calendar-range me-2"></i>まとめて登録
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label fw-semibold">開始日</label>
+              <input type="date" id="bulkStart" class="form-control" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">終了日</label>
+              <input type="date" id="bulkEnd" class="form-control" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">ステータス</label>
+              <select id="bulkStatus" class="form-select">
+                <option value="open">営業中</option>
+                <option value="closed">準備中（削除）</option>
+              </select>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="weekdaysOnly" />
+              <label class="form-check-label" for="weekdaysOnly">平日のみ（土日を除く）</label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+            <button type="button" class="btn btn-success" id="btnBulkSave" data-bs-dismiss="modal">
+              <i class="bi bi-check2 me-1"></i>登録
+            </button>
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Password setup modal (first time) -->
-  <div class="modal fade" id="setupPasswordModal" tabindex="-1" aria-labelledby="setupPasswordModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="setupPasswordModalLabel">
-            <i class="bi bi-shield-lock me-2"></i>パスワードの初期設定
-          </h5>
-        </div>
-        <div class="modal-body">
-          <p class="text-muted small">予定管理ページを保護するパスワードを設定してください。</p>
-          <div class="mb-3">
-            <label class="form-label fw-semibold">新しいパスワード</label>
-            <input type="password" id="setupPassword1" class="form-control" placeholder="パスワードを入力" />
+    <!-- Password change modal -->
+    <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="changePasswordModalLabel">
+              <i class="bi bi-key me-2"></i>パスワード変更
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold">パスワード（確認）</label>
-            <input type="password" id="setupPassword2" class="form-control" placeholder="もう一度入力" />
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label fw-semibold">現在のパスワード</label>
+              <input type="password" id="changeCurrentPassword" class="form-control" placeholder="現在のパスワード" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">新しいパスワード</label>
+              <input type="password" id="changeNewPassword1" class="form-control" placeholder="新しいパスワード" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">新しいパスワード（確認）</label>
+              <input type="password" id="changeNewPassword2" class="form-control" placeholder="もう一度入力" />
+            </div>
+            <div id="changePasswordError" class="text-danger small d-none"></div>
+            <div id="changePasswordSuccess" class="text-success small d-none"></div>
           </div>
-          <div id="setupPasswordError" class="text-danger small d-none"></div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-success" id="btnSetupPasswordSave">
-            <i class="bi bi-check2 me-1"></i>設定する
-          </button>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+            <button type="button" class="btn btn-primary" id="btnChangePasswordSave">
+              <i class="bi bi-check2 me-1"></i>変更する
+            </button>
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Password entry modal (every load) -->
-  <div class="modal fade" id="enterPasswordModal" tabindex="-1" aria-labelledby="enterPasswordModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="enterPasswordModalLabel">
-            <i class="bi bi-lock me-2"></i>パスワードを入力
-          </h5>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label fw-semibold">パスワード</label>
-            <input type="password" id="enterPassword" class="form-control" placeholder="パスワードを入力" />
-          </div>
-          <div id="enterPasswordError" class="text-danger small d-none"></div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-primary" id="btnEnterPasswordOk">
-            <i class="bi bi-unlock me-1"></i>ログイン
-          </button>
-        </div>
+    <!-- Footer -->
+    <footer class="py-3 bg-white text-dark text-center small border-top mt-4">
+      <div class="container">
+        &copy; <span id="year"></span> yoshida-kd
       </div>
-    </div>
+    </footer>
   </div>
-
-  <!-- Password change modal -->
-  <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="changePasswordModalLabel">
-            <i class="bi bi-key me-2"></i>パスワード変更
-          </h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label fw-semibold">現在のパスワード</label>
-            <input type="password" id="changeCurrentPassword" class="form-control" placeholder="現在のパスワード" />
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold">新しいパスワード</label>
-            <input type="password" id="changeNewPassword1" class="form-control" placeholder="新しいパスワード" />
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold">新しいパスワード（確認）</label>
-            <input type="password" id="changeNewPassword2" class="form-control" placeholder="もう一度入力" />
-          </div>
-          <div id="changePasswordError" class="text-danger small d-none"></div>
-          <div id="changePasswordSuccess" class="text-success small d-none"></div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-          <button type="button" class="btn btn-primary" id="btnChangePasswordSave">
-            <i class="bi bi-check2 me-1"></i>変更する
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Footer -->
-  <footer class="py-3 bg-dark text-white text-center small mt-4">
-    <div class="container">
-      &copy; <span id="year"></span> yoshida-kd
-    </div>
-  </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
@@ -283,6 +276,18 @@
     }
 
     const MIN_PW_LEN = 8;
+    const pageContent = document.getElementById('pageContent');
+    const authGate = document.getElementById('authGate');
+    const authGateDescription = document.getElementById('authGateDescription');
+    const authSetupFields = document.getElementById('authSetupFields');
+    const authLoginFields = document.getElementById('authLoginFields');
+    const authSubmit = document.getElementById('authSubmit');
+    const authSubmitLabel = document.getElementById('authSubmitLabel');
+    const authError = document.getElementById('authError');
+    const authPassword = document.getElementById('authPassword');
+    const authSetupPassword1 = document.getElementById('authSetupPassword1');
+    const authSetupPassword2 = document.getElementById('authSetupPassword2');
+    let authMode = 'login';
 
     function showError(el, msg) {
       el.textContent = msg;
@@ -292,50 +297,67 @@
       el.classList.add('d-none');
     }
 
-    /* ---- on page load: show appropriate modal ---- */
+    function setAuthMode(mode) {
+      authMode = mode;
+      const isSetup = mode === 'setup';
+      authSetupFields.classList.toggle('d-none', !isSetup);
+      authLoginFields.classList.toggle('d-none', isSetup);
+      authGateDescription.textContent = isSetup
+        ? '最初のパスワードを設定してください。'
+        : 'パスワードを入力してください。';
+      authSubmitLabel.textContent = isSetup ? '設定して開く' : 'ログイン';
+      hideError(authError);
+    }
+
+    function unlockPage() {
+      pageContent.classList.add('is-unlocked');
+      authGate.classList.add('is-hidden');
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
       const stored = localStorage.getItem(PW_KEY);
       if (!stored) {
-        new bootstrap.Modal(document.getElementById('setupPasswordModal')).show();
+        setAuthMode('setup');
       } else {
-        new bootstrap.Modal(document.getElementById('enterPasswordModal')).show();
+        setAuthMode('login');
       }
     });
 
-    /* ---- setup password ---- */
-    document.getElementById('btnSetupPasswordSave').addEventListener('click', async () => {
-      const p1 = document.getElementById('setupPassword1').value;
-      const p2 = document.getElementById('setupPassword2').value;
-      const errEl = document.getElementById('setupPasswordError');
-      hideError(errEl);
-      if (!p1) { showError(errEl, 'パスワードを入力してください。'); return; }
-      if (p1.length < MIN_PW_LEN) { showError(errEl, `パスワードは${MIN_PW_LEN}文字以上にしてください。`); return; }
-      if (p1 !== p2) { showError(errEl, 'パスワードが一致しません。'); return; }
-      localStorage.setItem(PW_KEY, await hashPassword(p1));
-      bootstrap.Modal.getInstance(document.getElementById('setupPasswordModal')).hide();
-      document.getElementById('setupPassword1').value = '';
-      document.getElementById('setupPassword2').value = '';
-    });
+    authSubmit.addEventListener('click', async () => {
+      hideError(authError);
 
-    /* ---- enter password ---- */
-    async function tryEnterPassword() {
-      const val = document.getElementById('enterPassword').value;
-      const errEl = document.getElementById('enterPasswordError');
-      hideError(errEl);
-      if (!val) { showError(errEl, 'パスワードを入力してください。'); return; }
-      const ok = await verifyPassword(val, localStorage.getItem(PW_KEY));
-      if (!ok) {
-        showError(errEl, 'パスワードが違います。');
-        document.getElementById('enterPassword').value = '';
+      if (authMode === 'setup') {
+        const firstPassword = authSetupPassword1.value;
+        const secondPassword = authSetupPassword2.value;
+        if (!firstPassword) { showError(authError, 'パスワードを入力してください。'); return; }
+        if (firstPassword.length < MIN_PW_LEN) { showError(authError, `パスワードは${MIN_PW_LEN}文字以上にしてください。`); return; }
+        if (firstPassword !== secondPassword) { showError(authError, 'パスワードが一致しません。'); return; }
+        localStorage.setItem(PW_KEY, await hashPassword(firstPassword));
+        authPassword.value = '';
+        authSetupPassword1.value = '';
+        authSetupPassword2.value = '';
+        unlockPage();
         return;
       }
-      bootstrap.Modal.getInstance(document.getElementById('enterPasswordModal')).hide();
-      document.getElementById('enterPassword').value = '';
-    }
 
-    document.getElementById('btnEnterPasswordOk').addEventListener('click', tryEnterPassword);
-    document.getElementById('enterPassword').addEventListener('keydown', e => {
-      if (e.key === 'Enter') tryEnterPassword();
+      const password = authPassword.value;
+      if (!password) { showError(authError, 'パスワードを入力してください。'); return; }
+      const ok = await verifyPassword(password, localStorage.getItem(PW_KEY));
+      if (!ok) {
+        showError(authError, 'パスワードが違います。');
+        authPassword.value = '';
+        return;
+      }
+      authPassword.value = '';
+      unlockPage();
+    });
+
+    [authPassword, authSetupPassword1, authSetupPassword2].forEach(input => {
+      input.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          authSubmit.click();
+        }
+      });
     });
 
     /* ---- change password ---- */
@@ -375,16 +397,25 @@
     }
 
     /* ---- build FullCalendar events from schedule ---- */
-    function buildEvents(schedule) {
-      return Object.entries(schedule)
-        .filter(([, v]) => v === 'open')
-        .map(([date]) => ({
-          id: date,
-          title: '営業中',
-          start: date,
+    function buildEvents(schedule, start, end) {
+      const events = [];
+      const cur = new Date(start);
+      const last = new Date(end);
+
+      while (cur < last) {
+        const key = cur.toLocaleDateString('sv-SE');
+        const isClosed = schedule[key] === 'closed';
+        events.push({
+          id: key,
+          title: isClosed ? '臨時休業' : '営業日',
+          start: key,
           allDay: true,
-          classNames: ['fc-event-open'],
-        }));
+          classNames: [isClosed ? 'fc-event-closed' : 'fc-event-open'],
+        });
+        cur.setDate(cur.getDate() + 1);
+      }
+
+      return events;
     }
 
     /* ---- calendar ---- */
@@ -400,43 +431,41 @@
         right: 'dayGridMonth,listMonth',
       },
       buttonText: { today: '今日', month: '月', list: 'リスト' },
-      events: buildEvents(getSchedule()),
+      events(info, successCallback) {
+        successCallback(buildEvents(getSchedule(), info.start, info.end));
+      },
 
       /* Toggle on day click */
       dateClick(info) {
         const schedule = getSchedule();
         const key = info.dateStr;
-        if (schedule[key] === 'open') {
+        if (schedule[key] === 'closed') {
           delete schedule[key];
         } else {
-          schedule[key] = 'open';
+          schedule[key] = 'closed';
         }
         saveSchedule(schedule);
         refreshCalendar();
       },
 
-      /* Toggle on event click (remove open) */
+      /* Toggle on event click */
       eventClick(info) {
         const schedule = getSchedule();
-        delete schedule[info.event.id];
+        const key = info.event.id;
+        if (schedule[key] === 'closed') {
+          delete schedule[key];
+        } else {
+          schedule[key] = 'closed';
+        }
         saveSchedule(schedule);
         refreshCalendar();
       },
 
-      /* Color day cells */
-      dayCellDidMount(info) {
-        const key = info.date.toLocaleDateString('sv-SE');
-        const schedule = getSchedule();
-        if (schedule[key] === 'open') {
-          info.el.classList.add('day-open');
-        }
-      },
     });
     calendar.render();
 
     function refreshCalendar() {
-      calendar.removeAllEvents();
-      calendar.addEventSource(buildEvents(getSchedule()));
+      calendar.refetchEvents();
     }
 
     /* ---- clear all ---- */
@@ -467,9 +496,9 @@
         if (!weekdaysOnly || (dow !== 0 && dow !== 6)) {
           const key = cur.toLocaleDateString('sv-SE');
           if (status === 'open') {
-            schedule[key] = 'open';
-          } else {
             delete schedule[key];
+          } else {
+            schedule[key] = 'closed';
           }
         }
         cur.setDate(cur.getDate() + 1);
