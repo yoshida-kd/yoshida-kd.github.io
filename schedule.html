@@ -61,9 +61,14 @@
       <a class="navbar-brand fw-bold" href="index.html">
         <i class="bi bi-shop me-2"></i>営業状況
       </a>
-      <a href="schedule.html" class="btn btn-success btn-sm">
-        <i class="bi bi-calendar3 me-1"></i>予定管理
-      </a>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
+          <i class="bi bi-key me-1"></i>パスワード変更
+        </button>
+        <a href="schedule.html" class="btn btn-success btn-sm">
+          <i class="bi bi-calendar3 me-1"></i>予定管理
+        </a>
+      </div>
     </div>
   </nav>
 
@@ -137,6 +142,97 @@
     </div>
   </div>
 
+  <!-- Password setup modal (first time) -->
+  <div class="modal fade" id="setupPasswordModal" tabindex="-1" aria-labelledby="setupPasswordModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="setupPasswordModalLabel">
+            <i class="bi bi-shield-lock me-2"></i>パスワードの初期設定
+          </h5>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">予定管理ページを保護するパスワードを設定してください。</p>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">新しいパスワード</label>
+            <input type="password" id="setupPassword1" class="form-control" placeholder="パスワードを入力" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">パスワード（確認）</label>
+            <input type="password" id="setupPassword2" class="form-control" placeholder="もう一度入力" />
+          </div>
+          <div id="setupPasswordError" class="text-danger small d-none"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-success" id="btnSetupPasswordSave">
+            <i class="bi bi-check2 me-1"></i>設定する
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Password entry modal (every load) -->
+  <div class="modal fade" id="enterPasswordModal" tabindex="-1" aria-labelledby="enterPasswordModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="enterPasswordModalLabel">
+            <i class="bi bi-lock me-2"></i>パスワードを入力
+          </h5>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">パスワード</label>
+            <input type="password" id="enterPassword" class="form-control" placeholder="パスワードを入力" />
+          </div>
+          <div id="enterPasswordError" class="text-danger small d-none"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" id="btnEnterPasswordOk">
+            <i class="bi bi-unlock me-1"></i>ログイン
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Password change modal -->
+  <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="changePasswordModalLabel">
+            <i class="bi bi-key me-2"></i>パスワード変更
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">現在のパスワード</label>
+            <input type="password" id="changeCurrentPassword" class="form-control" placeholder="現在のパスワード" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">新しいパスワード</label>
+            <input type="password" id="changeNewPassword1" class="form-control" placeholder="新しいパスワード" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">新しいパスワード（確認）</label>
+            <input type="password" id="changeNewPassword2" class="form-control" placeholder="もう一度入力" />
+          </div>
+          <div id="changePasswordError" class="text-danger small d-none"></div>
+          <div id="changePasswordSuccess" class="text-success small d-none"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+          <button type="button" class="btn btn-primary" id="btnChangePasswordSave">
+            <i class="bi bi-check2 me-1"></i>変更する
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Footer -->
   <footer class="py-3 bg-dark text-white text-center small mt-4">
     <div class="container">
@@ -148,6 +244,92 @@
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
+
+    /* ---- password helpers ---- */
+    const PW_KEY = 'schedulePasswordHash';
+
+    async function sha256(text) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function showError(el, msg) {
+      el.textContent = msg;
+      el.classList.remove('d-none');
+    }
+    function hideError(el) {
+      el.classList.add('d-none');
+    }
+
+    /* ---- on page load: show appropriate modal ---- */
+    window.addEventListener('DOMContentLoaded', () => {
+      const stored = localStorage.getItem(PW_KEY);
+      if (!stored) {
+        new bootstrap.Modal(document.getElementById('setupPasswordModal')).show();
+      } else {
+        new bootstrap.Modal(document.getElementById('enterPasswordModal')).show();
+      }
+    });
+
+    /* ---- setup password ---- */
+    document.getElementById('btnSetupPasswordSave').addEventListener('click', async () => {
+      const p1 = document.getElementById('setupPassword1').value;
+      const p2 = document.getElementById('setupPassword2').value;
+      const errEl = document.getElementById('setupPasswordError');
+      hideError(errEl);
+      if (!p1) { showError(errEl, 'パスワードを入力してください。'); return; }
+      if (p1 !== p2) { showError(errEl, 'パスワードが一致しません。'); return; }
+      localStorage.setItem(PW_KEY, await sha256(p1));
+      bootstrap.Modal.getInstance(document.getElementById('setupPasswordModal')).hide();
+      document.getElementById('setupPassword1').value = '';
+      document.getElementById('setupPassword2').value = '';
+    });
+
+    /* ---- enter password ---- */
+    async function tryEnterPassword() {
+      const val = document.getElementById('enterPassword').value;
+      const errEl = document.getElementById('enterPasswordError');
+      hideError(errEl);
+      if (!val) { showError(errEl, 'パスワードを入力してください。'); return; }
+      const hash = await sha256(val);
+      if (hash !== localStorage.getItem(PW_KEY)) {
+        showError(errEl, 'パスワードが違います。');
+        document.getElementById('enterPassword').value = '';
+        return;
+      }
+      bootstrap.Modal.getInstance(document.getElementById('enterPasswordModal')).hide();
+      document.getElementById('enterPassword').value = '';
+    }
+
+    document.getElementById('btnEnterPasswordOk').addEventListener('click', tryEnterPassword);
+    document.getElementById('enterPassword').addEventListener('keydown', e => {
+      if (e.key === 'Enter') tryEnterPassword();
+    });
+
+    /* ---- change password ---- */
+    document.getElementById('btnChangePasswordSave').addEventListener('click', async () => {
+      const cur = document.getElementById('changeCurrentPassword').value;
+      const n1 = document.getElementById('changeNewPassword1').value;
+      const n2 = document.getElementById('changeNewPassword2').value;
+      const errEl = document.getElementById('changePasswordError');
+      const okEl = document.getElementById('changePasswordSuccess');
+      hideError(errEl);
+      okEl.classList.add('d-none');
+      if (!cur) { showError(errEl, '現在のパスワードを入力してください。'); return; }
+      if (await sha256(cur) !== localStorage.getItem(PW_KEY)) {
+        showError(errEl, '現在のパスワードが違います。');
+        document.getElementById('changeCurrentPassword').value = '';
+        return;
+      }
+      if (!n1) { showError(errEl, '新しいパスワードを入力してください。'); return; }
+      if (n1 !== n2) { showError(errEl, '新しいパスワードが一致しません。'); return; }
+      localStorage.setItem(PW_KEY, await sha256(n1));
+      document.getElementById('changeCurrentPassword').value = '';
+      document.getElementById('changeNewPassword1').value = '';
+      document.getElementById('changeNewPassword2').value = '';
+      okEl.textContent = 'パスワードを変更しました。';
+      okEl.classList.remove('d-none');
+    });
 
     /* ---- storage helpers ---- */
     function getSchedule() {
