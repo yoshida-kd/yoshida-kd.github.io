@@ -134,9 +134,22 @@
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
 
-    function getSchedule() {
+    // Gist IDを設定してください（schedule.htmlのGIST_IDと同じ値）。
+    const GIST_ID = '84225189b50a19facf243ac3680bd4c7';
+
+    async function getSchedule() {
+      if (!GIST_ID) {
+        try { return JSON.parse(localStorage.getItem('schedule') || '{}'); }
+        catch { return {}; }
+      }
       try {
-        return JSON.parse(localStorage.getItem('schedule') || '{}');
+        const resp = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+          headers: { 'Accept': 'application/vnd.github+json' },
+        });
+        if (!resp.ok) return {};
+        const data = await resp.json();
+        const content = data.files?.['schedule.json']?.content || '{}';
+        return JSON.parse(content);
       } catch {
         return {};
       }
@@ -147,9 +160,7 @@
     }
 
     const today = new Date();
-    const key = toDateKey(today);
-    const schedule = getSchedule();
-    const isOpen = schedule[key] !== 'closed';
+    let schedule = {};
 
     const card = document.getElementById('statusCard');
     const icon = document.getElementById('statusIcon');
@@ -233,22 +244,27 @@
       calendarGrid.innerHTML = [buildMonthCalendar(currentMonth), buildMonthCalendar(nextMonth)].join('');
     }
 
-    if (isOpen) {
-      card.classList.add('status-open');
-      icon.innerHTML = '<i class="bi bi-door-open-fill"></i>';
-      label.textContent = '本日営業';
-    } else {
-      card.classList.add('status-closed');
-      icon.innerHTML = '<i class="bi bi-door-closed-fill"></i>';
-      label.textContent = '臨時休業';
-    }
+    (async () => {
+      schedule = await getSchedule();
+      const isOpen = schedule[toDateKey(today)] !== 'closed';
 
-    const formattedDate = today.toLocaleDateString('ja-JP', {
-      year: 'numeric', month: 'long', day: 'numeric', weekday: 'short'
-    });
-    dateEl.textContent = formattedDate + ' 15:00-17:00';
+      if (isOpen) {
+        card.classList.add('status-open');
+        icon.innerHTML = '<i class="bi bi-door-open-fill"></i>';
+        label.textContent = '本日営業';
+      } else {
+        card.classList.add('status-closed');
+        icon.innerHTML = '<i class="bi bi-door-closed-fill"></i>';
+        label.textContent = '臨時休業';
+      }
 
-    renderCalendars();
+      const formattedDate = today.toLocaleDateString('ja-JP', {
+        year: 'numeric', month: 'long', day: 'numeric', weekday: 'short'
+      });
+      dateEl.textContent = formattedDate + ' 15:00-17:00';
+
+      renderCalendars();
+    })();
   </script>
 </body>
 </html>
