@@ -213,7 +213,8 @@
           <div class="modal-body">
             <p class="small text-muted">
               スケジュールをGistに保存するために、GitHubのPersonal Access Token（PAT）が必要です。<br>
-              PATには <code>gist</code> スコープが必要です。このデバイスのブラウザにのみ保存されます。
+              <strong>Fine-grained PATはGistをサポートしていません。</strong>
+              <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener">Classic PAT</a>（<code>ghp_...</code> で始まるもの）を作成し、<code>gist</code> スコープを付与してください。このデバイスのブラウザにのみ保存されます。
             </p>
             <div class="mb-3">
               <label class="form-label fw-semibold" for="patInput">Personal Access Token</label>
@@ -625,6 +626,11 @@
       const errEl = document.getElementById('patError');
       if (!pat) {
         errEl.textContent = 'PATを入力してください。';
+        errEl.classList.remove('d-none');
+        return;
+      }
+      if (pat.startsWith('github_pat_')) {
+        errEl.textContent = 'Fine-grained PATはGistをサポートしていません。「ghp_」で始まるClassic PATを使用してください。';
         errEl.classList.remove('d-none');
         return;
       }
