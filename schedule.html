@@ -260,6 +260,26 @@
       return await sha256(password) === FIXED_PASSWORD_HASH;
     }
 
+    /* ---- Gist / storage constants ---- */
+    // Gist IDを設定してください。
+    // 手順: https://gist.github.com/ で新規Gistを作成し、ファイル名を "schedule.json"、内容を "{}" として保存。
+    // URLに含まれる英数字の文字列（例: https://gist.github.com/username/abc123 の "abc123"）をここに設定。
+    const GIST_ID = '84225189b50a19facf243ac3680bd4c7';
+    const PAT_KEY = 'gistPAT';
+
+    /* ---- cookie helpers ---- */
+    const AUTH_COOKIE = 'scheduleAuth';
+    const COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days
+
+    function setAuthCookie() {
+      document.cookie = `${AUTH_COOKIE}=${FIXED_PASSWORD_HASH}; max-age=${COOKIE_MAX_AGE}; path=/; SameSite=Strict`;
+    }
+
+    function getAuthCookie() {
+      const match = document.cookie.split('; ').find(row => row.startsWith(AUTH_COOKIE + '='));
+      return match ? match.split('=')[1] : null;
+    }
+
     const pageContent = document.getElementById('pageContent');
     const authGate = document.getElementById('authGate');
     const authError = document.getElementById('authError');
@@ -281,6 +301,11 @@
       }
     }
 
+    // Auto-unlock if a valid auth cookie is present
+    if (getAuthCookie() === FIXED_PASSWORD_HASH) {
+      unlockPage();
+    }
+
     document.getElementById('authSubmit').addEventListener('click', async () => {
       hideError(authError);
       const password = authPassword.value;
@@ -292,6 +317,7 @@
         return;
       }
       authPassword.value = '';
+      setAuthCookie();
       unlockPage();
     });
 
@@ -302,12 +328,6 @@
     });
 
     /* ---- Gist / storage helpers ---- */
-    // Gist IDを設定してください。
-    // 手順: https://gist.github.com/ で新規Gistを作成し、ファイル名を "schedule.json"、内容を "{}" として保存。
-    // URLに含まれる英数字の文字列（例: https://gist.github.com/username/abc123 の "abc123"）をここに設定。
-    const GIST_ID = '84225189b50a19facf243ac3680bd4c7';
-    const PAT_KEY = 'gistPAT';
-
     function showToast(message, type = 'success') {
       const toast = document.getElementById('saveToast');
       const body = document.getElementById('saveToastBody');
