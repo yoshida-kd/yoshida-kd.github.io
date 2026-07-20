@@ -109,12 +109,7 @@
       </div>
 
       <div class="alert alert-light border mb-0" role="note">
-        <ul class="mb-0 small">
-          <li>コーヒーブレイクは毎日15時から17時に設けます。</li>
-          <li>コーヒーブレイクの時間帯は研究室にいるようにするので、アポなしで研究室に来ても構いません。</li>
-          <li>コーヒーブレイクの時間帯以外はLINEのような気楽な方法で構わないので事前に連絡をください（無駄足になったら申し訳ないので）。</li>
-          <li>私も暇ではありませんが、幸い時間の融通は効くので気軽に来てください。</li>
-        </ul>
+        <ul id="descriptionList" class="mb-0 small"></ul>
       </div>
 
       <section class="calendar-section">
@@ -266,6 +261,14 @@
 
       renderCalendars();
     })();
+
+    const descList = document.getElementById('descriptionList');
+
+    (data.description || []).forEach(text => {
+      const li = document.createElement('li');
+      li.textContent = text;
+      descList.appendChild(li);
+    });
   </script>
 </body>
 </html>
