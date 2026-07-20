@@ -151,6 +151,18 @@
       }
     }
 
+    function renderDescription(data) {
+      const list = document.getElementById('descriptionList');
+
+      list.innerHTML = '';
+
+      (data.description || []).forEach(text => {
+        const li = document.createElement('li');
+        li.textContent = text;
+        list.appendChild(li);
+      });
+    }
+
     function toDateKey(date) {
       return date.toLocaleDateString('sv-SE'); // YYYY-MM-DD
     }
@@ -241,7 +253,12 @@
     }
 
     (async () => {
-      schedule = await getSchedule();
+      const data = await getSchedule();
+
+      schedule = data.closedDates || {};
+
+      renderDescription(data);
+
       const isOpen = schedule[toDateKey(today)] !== 'closed';
 
       if (isOpen) {

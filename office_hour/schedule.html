@@ -148,15 +148,21 @@
         <div class="card-header">
           説明文編集
         </div>
-        <div class="card-body">
-          <textarea id="descriptionText"
-                    class="form-control"
-                    rows="8"></textarea>
 
-          <button id="saveDescription"
-                  class="btn btn-primary mt-3">
+        <div class="card-body">
+
+          <textarea
+            id="descriptionText"
+            class="form-control"
+            rows="8"></textarea>
+
+          <button
+            id="saveDescription"
+            class="btn btn-primary mt-3">
+
             保存
           </button>
+
         </div>
       </div>
     </main>
@@ -434,32 +440,43 @@
 
       /* Toggle on day click */
       async dateClick(info) {
-        const schedule = await getSchedule();
+        const data = await getSchedule();
+        const schedule = data.closedDates || {};
         const key = info.dateStr;
         if (schedule[key] === 'closed') {
           delete schedule[key];
         } else {
           schedule[key] = 'closed';
         }
-        await saveSchedule(schedule);
+        data.closedDates = schedule;
+        await saveSchedule(data);
         refreshCalendar();
       },
 
       /* Toggle on event click */
       async eventClick(info) {
-        const schedule = await getSchedule();
+        const data = await getSchedule();
+        const schedule = data.closedDates || {};
         const key = info.event.id;
         if (schedule[key] === 'closed') {
           delete schedule[key];
         } else {
           schedule[key] = 'closed';
         }
-        await saveSchedule(schedule);
+        data.closedDates = schedule;
+        await saveSchedule(data);
         refreshCalendar();
       },
 
     });
     calendar.render();
+
+    (async () => {
+      const data = await getSchedule();
+
+      document.getElementById('descriptionText').value =
+        (data.description || []).join('\n');
+    })();
 
     function refreshCalendar() {
       calendar.refetchEvents();
@@ -485,7 +502,8 @@
         return;
       }
 
-      const schedule = await getSchedule();
+      const data = await getSchedule();
+      const schedule = data.closedDates || {};
       const cur = new Date(start);
       const last = new Date(end);
       while (cur <= last) {
@@ -500,7 +518,8 @@
         }
         cur.setDate(cur.getDate() + 1);
       }
-      await saveSchedule(schedule);
+      data.closedDates = schedule;
+      await saveSchedule(data);
       refreshCalendar();
     });
     /* ---- PAT settings ---- */
@@ -544,6 +563,22 @@
         }
         showToast('PAT を削除しました');
       }
+    });
+
+    document.getElementById('saveDescription').addEventListener('click', async () => {
+
+      const data = await getSchedule();
+
+      data.description =
+        document.getElementById('descriptionText')
+          .value
+          .split('\n')
+          .filter(x => x.trim());
+
+      await saveSchedule(data);
+
+      showToast('説明文を保存しました');
+
     });
   </script>
 </body>
