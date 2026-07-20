@@ -432,7 +432,9 @@
       buttonText: { today: '今日', month: '月', list: 'リスト' },
       async events(info, successCallback, failureCallback) {
         try {
-          successCallback(buildEvents(await getSchedule(), info.start, info.end));
+          const data = await getSchedule();
+          const schedule = data.closedDates || {};
+          successCallback(buildEvents(schedule, info.start, info.end));
         } catch (e) {
           failureCallback(e);
         }
@@ -485,7 +487,9 @@
     /* ---- clear all ---- */
     document.getElementById('btnClearAll').addEventListener('click', async () => {
       if (confirm('すべての予定をリセットしますか？')) {
-        await saveSchedule({});
+        const data = await getSchedule();
+        data.closedDates = {};
+        await saveSchedule(data);
         refreshCalendar();
       }
     });
