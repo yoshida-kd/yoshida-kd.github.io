@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>予定管理</title>
+  <!-- Bootstrap 5 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="icon" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/cup-hot.svg" type="image/svg+xml" />
+  <!-- FullCalendar -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css" />
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: #f8f9fa;
+    }
+    footer { margin-top: auto; }
+
+    /* Event badges */
+    .fc-event-open {
+      background-color: #198754 !important;
+      border-color: #198754 !important;
+    }
+    .fc-event-closed {
+      background-color: #6c757d !important;
+      border-color: #6c757d !important;
+    }
+
+    #calendar {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .legend-dot {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    #pageContent {
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    #pageContent.is-unlocked {
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    #authGate {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      background: rgba(248, 249, 250, 0.92);
+      backdrop-filter: blur(10px);
+    }
+
+    #authGate.is-hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="authGate" aria-modal="true" role="dialog" aria-labelledby="authGateTitle">
+    <div class="card shadow-lg border-0 rounded-4" style="max-width: 420px; width: 100%;">
+      <div class="card-body p-4 p-md-5">
+        <h1 class="h4 fw-bold mb-2" id="authGateTitle">
+          <i class="bi bi-lock me-2"></i>予定管理ページ
+        </h1>
+        <p class="text-muted mb-4" id="authGateDescription">パスワードを入力してください。</p>
+
+        <div id="authLoginFields">
+          <label class="form-label fw-semibold" for="authPassword">パスワード</label>
+          <input type="password" id="authPassword" class="form-control" placeholder="パスワードを入力" autofocus autocomplete="current-password" />
+        </div>
+
+        <div id="authError" class="text-danger small d-none mt-3"></div>
+        <button type="button" id="authSubmit" class="btn btn-primary w-100 mt-4">
+          <i class="bi bi-unlock me-1"></i><span id="authSubmitLabel">ログイン</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="pageContent">
+    <!-- Navbar -->
+    <nav class="navbar navbar-light bg-white">
+      <div class="container">
+        <a class="navbar-brand fw-bold" href="index.html">
+          <i class="bi bi-shop me-2"></i>コーヒーブレイク
+        </a>
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#patModal">
+            <i class="bi bi-github me-1"></i>PAT設定
+          </button>
+          <a href="schedule.html" class="btn btn-success btn-sm">
+            <i class="bi bi-calendar3 me-1"></i>予定管理
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main -->
+    <main class="flex-grow-1 container py-4">
+      <h2 class="mb-1 fw-bold"><i class="bi bi-calendar-week me-2"></i>予定管理</h2>
+      <p class="text-muted mb-3">日付をクリックして「営業日（デフォルト）」か「臨時休業」を切り替えられます。</p>
+
+      <!-- PAT missing banner -->
+      <div id="patMissingBanner" class="alert alert-warning d-flex align-items-center gap-2 mb-3 d-none" role="alert">
+        <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
+        <span>GitHub PATが設定されていません。スケジュールの保存ができません。</span>
+        <button type="button" class="btn btn-sm btn-warning ms-auto text-nowrap" data-bs-toggle="modal" data-bs-target="#patModal">今すぐ設定</button>
+      </div>
+
+      <!-- Legend -->
+      <div class="d-flex gap-3 mb-3 align-items-center">
+        <span class="d-flex align-items-center gap-1">
+          <span class="legend-dot bg-success"></span> 営業日（デフォルト）
+        </span>
+        <span class="d-flex align-items-center gap-1">
+          <span class="legend-dot bg-secondary"></span> 臨時休業
+        </span>
+        <button id="btnClearAll" class="btn btn-outline-danger btn-sm ms-auto">
+          <i class="bi bi-trash me-1"></i>すべてリセット
+        </button>
+      </div>
+
+      <!-- Calendar -->
+      <div id="calendar"></div>
+
+      <!-- Bulk set modal trigger -->
+      <div class="mt-3 d-flex gap-2 flex-wrap">
+        <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#bulkModal">
+          <i class="bi bi-calendar-plus me-1"></i>まとめて登録
+        </button>
+      </div>
+
+      <div class="card mt-4">
+        <div class="card-header">
+          説明文編集
+        </div>
+
+        <div class="card-body">
+
+          <textarea
+            id="descriptionText"
+            class="form-control"
+            rows="8"></textarea>
+
+          <button
+            id="saveDescription"
+            class="btn btn-primary mt-3">
+
+            保存
+          </button>
+
+        </div>
+      </div>
+    </main>
+
+    <!-- Bulk modal -->
+    <div class="modal fade" id="bulkModal" tabindex="-1" aria-labelledby="bulkModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="bulkModalLabel">
+              <i class="bi bi-calendar-range me-2"></i>まとめて登録
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label fw-semibold">開始日</label>
+              <input type="date" id="bulkStart" class="form-control" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">終了日</label>
+              <input type="date" id="bulkEnd" class="form-control" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">ステータス</label>
+              <select id="bulkStatus" class="form-select">
+                <option value="open">営業中</option>
+                <option value="closed">準備中（削除）</option>
+              </select>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="weekdaysOnly" />
+              <label class="form-check-label" for="weekdaysOnly">平日のみ（土日を除く）</label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+            <button type="button" class="btn btn-success" id="btnBulkSave" data-bs-dismiss="modal">
+              <i class="bi bi-check2 me-1"></i>登録
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAT settings modal -->
+    <div class="modal fade" id="patModal" tabindex="-1" aria-labelledby="patModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="patModalLabel">
+              <i class="bi bi-github me-2"></i>GitHub PAT設定
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p class="small text-muted">
+              スケジュールをGistに保存するために、GitHubのPersonal Access Token（PAT）が必要です。<br>
+              <strong>Fine-grained PATはGistをサポートしていません。</strong>
+              <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener">Classic PAT</a>（<code>ghp_...</code> で始まるもの）を作成し、<code>gist</code> スコープを付与してください。このデバイスのブラウザにのみ保存されます。
+            </p>
+            <div class="mb-3">
+              <label class="form-label fw-semibold" for="patInput">Personal Access Token</label>
+              <input type="password" id="patInput" class="form-control font-monospace" placeholder="ghp_..." autocomplete="off" />
+              <div class="form-text" id="patStatus"></div>
+            </div>
+            <div id="patError" class="text-danger small d-none"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-danger btn-sm me-auto" id="btnPatClear">
+              <i class="bi bi-trash me-1"></i>削除
+            </button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+            <button type="button" class="btn btn-primary" id="btnPatSave">
+              <i class="bi bi-check2 me-1"></i>保存
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="py-3 bg-white text-dark text-center small border-top mt-4">
+      <div class="container">
+        &copy; <span id="year"></span> yoshida-kd
+      </div>
+    </footer>
+  </div>
+
+  <!-- Save toast -->
+  <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100">
+    <div id="saveToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="d-flex">
+        <div class="toast-body" id="saveToastBody"></div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    /* ---- password helpers ---- */
+    // SHA-256 hash of the fixed admin password.
+    // To change the password, compute: echo -n "newpassword" | sha256sum | cut -d" " -f1
+    // and replace the value below.
+    const FIXED_PASSWORD_HASH = 'e53f62e9e2fa8da33dd196001cf04c65b1749ec2eddf9a3907ccc9e9d22c0b2a';
+
+    async function sha256(text) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function verifyPassword(password) {
+      return await sha256(password) === FIXED_PASSWORD_HASH;
+    }
+
+    /* ---- Gist / storage constants ---- */
+    // Gist IDを設定してください。
+    // 手順: https://gist.github.com/ で新規Gistを作成し、ファイル名を "schedule.json"、内容を "{}" として保存。
+    // URLに含まれる英数字の文字列（例: https://gist.github.com/username/abc123 の "abc123"）をここに設定。
+    const GIST_ID = '84225189b50a19facf243ac3680bd4c7';
+    const PAT_KEY = 'gistPAT';
+
+    /* ---- cookie helpers ---- */
+    const AUTH_COOKIE = 'scheduleAuth';
+    const COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days
+
+    function setAuthCookie() {
+      document.cookie = `${AUTH_COOKIE}=${FIXED_PASSWORD_HASH}; max-age=${COOKIE_MAX_AGE}; path=/; SameSite=Strict`;
+    }
+
+    function getAuthCookie() {
+      const match = document.cookie.split('; ').find(row => row.startsWith(AUTH_COOKIE + '='));
+      return match ? match.split('=')[1] : null;
+    }
+
+    const pageContent = document.getElementById('pageContent');
+    const authGate = document.getElementById('authGate');
+    const authError = document.getElementById('authError');
+    const authPassword = document.getElementById('authPassword');
+
+    function showError(el, msg) {
+      el.textContent = msg;
+      el.classList.remove('d-none');
+    }
+    function hideError(el) {
+      el.classList.add('d-none');
+    }
+
+    function unlockPage() {
+      pageContent.classList.add('is-unlocked');
+      authGate.classList.add('is-hidden');
+      if (GIST_ID && !localStorage.getItem(PAT_KEY)) {
+        document.getElementById('patMissingBanner').classList.remove('d-none');
+      }
+    }
+
+    // Auto-unlock if a valid auth cookie is present
+    if (getAuthCookie() === FIXED_PASSWORD_HASH) {
+      unlockPage();
+    }
+
+    document.getElementById('authSubmit').addEventListener('click', async () => {
+      hideError(authError);
+      const password = authPassword.value;
+      if (!password) { showError(authError, 'パスワードを入力してください。'); return; }
+      const ok = await verifyPassword(password);
+      if (!ok) {
+        showError(authError, 'パスワードが違います。');
+        authPassword.value = '';
+        return;
+      }
+      authPassword.value = '';
+      setAuthCookie();
+      unlockPage();
+    });
+
+    authPassword.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        document.getElementById('authSubmit').click();
+      }
+    });
+
+    /* ---- Gist / storage helpers ---- */
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('saveToast');
+      const body = document.getElementById('saveToastBody');
+      body.textContent = message;
+      toast.className = `toast align-items-center border-0 text-white bg-${type === 'success' ? 'success' : 'danger'}`;
+      bootstrap.Toast.getOrCreateInstance(toast, { delay: 3000 }).show();
+    }
+
+    async function getSchedule() {
+      if (!GIST_ID) {
+        try { return JSON.parse(localStorage.getItem('schedule') || '{}'); }
+        catch { return {}; }
+      }
+      const pat = localStorage.getItem(PAT_KEY) || '';
+      const headers = {
+        'Accept': 'application/vnd.github+json',
+        ...(pat ? { 'Authorization': 'Bearer ' + pat } : {}),
+      };
+      const resp = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers, cache: 'no-store' });
+      if (!resp.ok) throw new Error(`Gist取得エラー (${resp.status})`);
+      const data = await resp.json();
+      const content = data.files?.['schedule.json']?.content || '{}';
+      return JSON.parse(content);
+    }
+
+    async function saveSchedule(schedule) {
+      if (!GIST_ID) {
+        localStorage.setItem('schedule', JSON.stringify(schedule));
+        return;
+      }
+      const pat = localStorage.getItem(PAT_KEY) || '';
+      if (!pat) { showToast('GitHub PATが設定されていません。', 'danger'); throw new Error('PAT未設定'); }
+      const resp = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+        method: 'PATCH',
+        headers: {
+          'Accept': 'application/vnd.github+json',
+          'Authorization': 'Bearer ' + pat,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ files: { 'schedule.json': { content: JSON.stringify(schedule) } } }),
+      });
+      if (!resp.ok) { showToast(`保存エラー (${resp.status})`, 'danger'); throw new Error(`PATCH failed: ${resp.status}`); }
+      showToast('保存しました');
+    }
+
+    /* ---- build FullCalendar events from schedule ---- */
+    function buildEvents(schedule, start, end) {
+      const events = [];
+      const cur = new Date(start);
+      const last = new Date(end);
+
+      while (cur < last) {
+        const key = cur.toLocaleDateString('sv-SE');
+        const isClosed = schedule[key] === 'closed';
+        events.push({
+          id: key,
+          title: isClosed ? '臨時休業' : '営業日',
+          start: key,
+          allDay: true,
+          classNames: [isClosed ? 'fc-event-closed' : 'fc-event-open'],
+        });
+        cur.setDate(cur.getDate() + 1);
+      }
+
+      return events;
+    }
+
+    /* ---- calendar ---- */
+    const calEl = document.getElementById('calendar');
+    const calendar = new FullCalendar.Calendar(calEl, {
+      initialView: 'dayGridMonth',
+      locale: 'ja',
+      height: 'auto',
+      firstDay: 0,
+      headerToolbar: {
+        left: 'prev,next today',
+        center: 'title',
+        right: 'dayGridMonth,listMonth',
+      },
+      buttonText: { today: '今日', month: '月', list: 'リスト' },
+      async events(info, successCallback, failureCallback) {
+        try {
+          const data = await getSchedule();
+          const schedule = data.closedDates || {};
+          successCallback(buildEvents(schedule, info.start, info.end));
+        } catch (e) {
+          failureCallback(e);
+        }
+      },
+
+      /* Toggle on day click */
+      async dateClick(info) {
+        const data = await getSchedule();
+        const schedule = data.closedDates || {};
+        const key = info.dateStr;
+        if (schedule[key] === 'closed') {
+          delete schedule[key];
+        } else {
+          schedule[key] = 'closed';
+        }
+        data.closedDates = schedule;
+        await saveSchedule(data);
+        refreshCalendar();
+      },
+
+      /* Toggle on event click */
+      async eventClick(info) {
+        const data = await getSchedule();
+        const schedule = data.closedDates || {};
+        const key = info.event.id;
+        if (schedule[key] === 'closed') {
+          delete schedule[key];
+        } else {
+          schedule[key] = 'closed';
+        }
+        data.closedDates = schedule;
+        await saveSchedule(data);
+        refreshCalendar();
+      },
+
+    });
+    calendar.render();
+
+    (async () => {
+      const data = await getSchedule();
+
+      document.getElementById('descriptionText').value =
+        (data.description || []).join('\n');
+    })();
+
+    function refreshCalendar() {
+      calendar.refetchEvents();
+    }
+
+    /* ---- clear all ---- */
+    document.getElementById('btnClearAll').addEventListener('click', async () => {
+      if (confirm('すべての予定をリセットしますか？')) {
+        const data = await getSchedule();
+        data.closedDates = {};
+        await saveSchedule(data);
+        refreshCalendar();
+      }
+    });
+
+    /* ---- bulk register ---- */
+    document.getElementById('btnBulkSave').addEventListener('click', async () => {
+      const start = document.getElementById('bulkStart').value;
+      const end = document.getElementById('bulkEnd').value;
+      const status = document.getElementById('bulkStatus').value;
+      const weekdaysOnly = document.getElementById('weekdaysOnly').checked;
+
+      if (!start || !end || start > end) {
+        alert('正しい日付範囲を入力してください。');
+        return;
+      }
+
+      const data = await getSchedule();
+      const schedule = data.closedDates || {};
+      const cur = new Date(start);
+      const last = new Date(end);
+      while (cur <= last) {
+        const dow = cur.getDay();
+        if (!weekdaysOnly || (dow !== 0 && dow !== 6)) {
+          const key = cur.toLocaleDateString('sv-SE');
+          if (status === 'open') {
+            delete schedule[key];
+          } else {
+            schedule[key] = 'closed';
+          }
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+      data.closedDates = schedule;
+      await saveSchedule(data);
+      refreshCalendar();
+    });
+    /* ---- PAT settings ---- */
+    document.getElementById('patModal').addEventListener('show.bs.modal', () => {
+      const stored = localStorage.getItem(PAT_KEY);
+      document.getElementById('patStatus').textContent = stored ? '✓ PAT設定済み（変更する場合は新しいPATを入力）' : '';
+      document.getElementById('patInput').value = '';
+      document.getElementById('patError').classList.add('d-none');
+    });
+
+    document.getElementById('btnPatSave').addEventListener('click', () => {
+      const pat = document.getElementById('patInput').value.trim();
+      const errEl = document.getElementById('patError');
+      if (!pat) {
+        errEl.textContent = 'PATを入力してください。';
+        errEl.classList.remove('d-none');
+        return;
+      }
+      if (pat.startsWith('github_pat_')) {
+        errEl.textContent = 'Fine-grained PATはGistをサポートしていません。「ghp_」で始まるClassic PATを使用してください。';
+        errEl.classList.remove('d-none');
+        return;
+      }
+      localStorage.setItem(PAT_KEY, pat);
+      document.getElementById('patInput').value = '';
+      errEl.classList.add('d-none');
+      document.getElementById('patMissingBanner').classList.add('d-none');
+      bootstrap.Modal.getInstance(document.getElementById('patModal'))?.hide();
+      showToast('PAT を保存しました');
+      refreshCalendar();
+    });
+
+    document.getElementById('btnPatClear').addEventListener('click', () => {
+      if (confirm('PATを削除しますか？')) {
+        localStorage.removeItem(PAT_KEY);
+        document.getElementById('patInput').value = '';
+        document.getElementById('patStatus').textContent = '';
+        bootstrap.Modal.getInstance(document.getElementById('patModal'))?.hide();
+        if (GIST_ID) {
+          document.getElementById('patMissingBanner').classList.remove('d-none');
+        }
+        showToast('PAT を削除しました');
+      }
+    });
+
+    document.getElementById('saveDescription').addEventListener('click', async () => {
+
+      const data = await getSchedule();
+
+      data.description =
+        document.getElementById('descriptionText')
+          .value
+          .split('\n')
+          .filter(x => x.trim());
+
+      await saveSchedule(data);
+
+      showToast('説明文を保存しました');
+
+    });
+  </script>
+</body>
+</html>
