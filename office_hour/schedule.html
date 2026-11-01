@@ -117,7 +117,7 @@
       <!-- PAT missing banner -->
       <div id="patMissingBanner" class="alert alert-warning d-flex align-items-center gap-2 mb-3 d-none" role="alert">
         <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
-        <span>GitHub PATが設定されていません。スケジュールの保存ができません。</span>
+        <span id="patBannerText">GitHub PATが設定されていません。スケジュールの保存ができません。</span>
         <button type="button" class="btn btn-sm btn-warning ms-auto text-nowrap" data-bs-toggle="modal" data-bs-target="#patModal">今すぐ設定</button>
       </div>
 
@@ -358,6 +358,33 @@
       bootstrap.Toast.getOrCreateInstance(toast, { delay: 3000 }).show();
     }
 
+    function showPatProblem() {
+      document.getElementById('patBannerText').textContent =
+        'GitHub PATが無効か期限切れです。新しいClassic PAT（gistスコープ付き）を作成して再設定してください。';
+      document.getElementById('patMissingBanner').classList.remove('d-none');
+    }
+
+    function describeApiError(resp, action) {
+      const s = resp.status;
+      if (s === 401) return `${action}エラー: PATが無効か期限切れです（401）`;
+      if (s === 404) return `${action}エラー: Gistが見つからないか、PATにgistスコープがありません（404）`;
+      if ((s === 403 || s === 429) && resp.headers.get('x-ratelimit-remaining') === '0') {
+        return `${action}エラー: GitHub APIの利用回数制限に達しました。しばらく待ってから再度お試しください（${s}）`;
+      }
+      if (s === 403) return `${action}エラー: アクセスが拒否されました。PATの権限を確認してください（403）`;
+      return `${action}エラー (${s})`;
+    }
+
+    // 非同期処理の失敗を握りつぶさず、画面上に表示する
+    async function runAction(fn) {
+      try {
+        await fn();
+      } catch (e) {
+        console.error(e);
+        showToast(e.message || '処理に失敗しました', 'danger');
+      }
+    }
+
     async function getSchedule() {
       if (!GIST_ID) {
         try { return JSON.parse(localStorage.getItem('schedule') || '{}'); }
@@ -368,8 +395,14 @@
         'Accept': 'application/vnd.github+json',
         ...(pat ? { 'Authorization': 'Bearer ' + pat } : {}),
       };
-      const resp = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers, cache: 'no-store' });
-      if (!resp.ok) throw new Error(`Gist取得エラー (${resp.status})`);
+      let resp = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers, cache: 'no-store' });
+      if (resp.status === 401 && pat) {
+        // PATが期限切れ・失効している場合でも、公開Gistの読み込みは認証なしで続行する
+        showPatProblem();
+        delete headers['Authorization'];
+        resp = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers, cache: 'no-store' });
+      }
+      if (!resp.ok) throw new Error(describeApiError(resp, '取得'));
       const data = await resp.json();
       const content = data.files?.['schedule.json']?.content || '{}';
       return JSON.parse(content);
@@ -381,7 +414,7 @@
         return;
       }
       const pat = localStorage.getItem(PAT_KEY) || '';
-      if (!pat) { showToast('GitHub PATが設定されていません。', 'danger'); throw new Error('PAT未設定'); }
+      if (!pat) throw new Error('GitHub PATが設定されていません。');
       const resp = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
         method: 'PATCH',
         headers: {
@@ -391,7 +424,10 @@
         },
         body: JSON.stringify({ files: { 'schedule.json': { content: JSON.stringify(schedule) } } }),
       });
-      if (!resp.ok) { showToast(`保存エラー (${resp.status})`, 'danger'); throw new Error(`PATCH failed: ${resp.status}`); }
+      if (!resp.ok) {
+        if (resp.status === 401 || resp.status === 404) showPatProblem();
+        throw new Error(describeApiError(resp, '保存'));
+      }
       showToast('保存しました');
     }
 
@@ -436,12 +472,13 @@
           const schedule = data.closedDates || {};
           successCallback(buildEvents(schedule, info.start, info.end));
         } catch (e) {
+          showToast(e.message || '予定の読み込みに失敗しました', 'danger');
           failureCallback(e);
         }
       },
 
       /* Toggle on day click */
-      async dateClick(info) {
+      dateClick: info => runAction(async () => {
         const data = await getSchedule();
         const schedule = data.closedDates || {};
         const key = info.dateStr;
@@ -453,10 +490,10 @@
         data.closedDates = schedule;
         await saveSchedule(data);
         refreshCalendar();
-      },
+      }),
 
       /* Toggle on event click */
-      async eventClick(info) {
+      eventClick: info => runAction(async () => {
         const data = await getSchedule();
         const schedule = data.closedDates || {};
         const key = info.event.id;
@@ -468,34 +505,34 @@
         data.closedDates = schedule;
         await saveSchedule(data);
         refreshCalendar();
-      },
+      }),
 
     });
     calendar.render();
 
-    (async () => {
+    runAction(async () => {
       const data = await getSchedule();
 
       document.getElementById('descriptionText').value =
         (data.description || []).join('\n');
-    })();
+    });
 
     function refreshCalendar() {
       calendar.refetchEvents();
     }
 
     /* ---- clear all ---- */
-    document.getElementById('btnClearAll').addEventListener('click', async () => {
+    document.getElementById('btnClearAll').addEventListener('click', () => runAction(async () => {
       if (confirm('すべての予定をリセットしますか？')) {
         const data = await getSchedule();
         data.closedDates = {};
         await saveSchedule(data);
         refreshCalendar();
       }
-    });
+    }));
 
     /* ---- bulk register ---- */
-    document.getElementById('btnBulkSave').addEventListener('click', async () => {
+    document.getElementById('btnBulkSave').addEventListener('click', () => runAction(async () => {
       const start = document.getElementById('bulkStart').value;
       const end = document.getElementById('bulkEnd').value;
       const status = document.getElementById('bulkStatus').value;
@@ -525,7 +562,7 @@
       data.closedDates = schedule;
       await saveSchedule(data);
       refreshCalendar();
-    });
+    }));
     /* ---- PAT settings ---- */
     document.getElementById('patModal').addEventListener('show.bs.modal', () => {
       const stored = localStorage.getItem(PAT_KEY);
@@ -551,6 +588,7 @@
       document.getElementById('patInput').value = '';
       errEl.classList.add('d-none');
       document.getElementById('patMissingBanner').classList.add('d-none');
+      document.getElementById('patBannerText').textContent = 'GitHub PATが設定されていません。スケジュールの保存ができません。';
       bootstrap.Modal.getInstance(document.getElementById('patModal'))?.hide();
       showToast('PAT を保存しました');
       refreshCalendar();
@@ -563,13 +601,14 @@
         document.getElementById('patStatus').textContent = '';
         bootstrap.Modal.getInstance(document.getElementById('patModal'))?.hide();
         if (GIST_ID) {
+          document.getElementById('patBannerText').textContent = 'GitHub PATが設定されていません。スケジュールの保存ができません。';
           document.getElementById('patMissingBanner').classList.remove('d-none');
         }
         showToast('PAT を削除しました');
       }
     });
 
-    document.getElementById('saveDescription').addEventListener('click', async () => {
+    document.getElementById('saveDescription').addEventListener('click', () => runAction(async () => {
 
       const data = await getSchedule();
 
@@ -583,7 +622,7 @@
 
       showToast('説明文を保存しました');
 
-    });
+    }));
   </script>
 </body>
 </html>
